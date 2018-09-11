@@ -1,5 +1,4 @@
 git init
 git add .
 git commit
-git remote add origin https://alex-tsvetanov@bitbucket.org/alex-tsvetanov/web-framework-for-c.git
-git push -u origin master
+git push
