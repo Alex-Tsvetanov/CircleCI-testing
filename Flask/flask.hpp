@@ -189,7 +189,7 @@ namespace Flask
 						return s.second.call (params); 
 					}
 				}
-				return response (status_line ("1.1", "404"));
+				return response (status_line ("404"));
 			}
 
 			void run (unsigned short PORT, const unsigned char threads)
@@ -224,44 +224,88 @@ namespace Flask
 					perror("bind failed"); 
 					throw std::ios_base::failure ("Socket failed"); 
 				} 
-				if (listen(server_fd, 3) < 0) 
+				if (listen(server_fd, SOMAXCONN) < 0) 
 				{ 
 					perror("listen"); 
 					throw std::ios_base::failure ("Listen"); 
 				} 
 
-				auto accept_req = [&] () {
+				auto accept_req = [&] (int new_socket, size_t id) {
 					char buffer[8196] = {0}; 
-					int new_socket;
-					if ((new_socket = accept(server_fd, (struct sockaddr *)&address,  
-									   (socklen_t*)&addrlen))<0) 
-					{ 
-						perror("accept"); 
-						throw std::ios_base::failure ("Accept"); 
-					} 
 					valread = read (new_socket, buffer, 8196); 
-					printf("%s\n",buffer); 
+					printf("Accept:\n%s\n--------- BUFFER ------------\n"); 
 
+					if (strlen (buffer) == 0)
+					{
+						std::cout << "================= FACK YOU ===============" << std::endl;
+						this->busy [id] = false;
+						return ;
+					}
+
+					response res;
 					request r (buffer);
 					std::cout << r.to_string () << std::endl;
+					printf("--------- REQUEST ------------\n",buffer); 
 
-					response res = this->respond (r); 
+					res = this->respond (r);
+					res.set_http (r.http);
 					std::cout << res.to_string () << std::endl;
-					send(new_socket, res.to_string ().c_str () , res.to_string ().size () , 0 ); 
+					printf("--------- REQUEST ------------\n",buffer); 
+					char* msg = new char [res.to_string ().size () + 1];
+					std::string s = res.to_string ();
+					for (size_t i = 0 ; i < s.size () ; i ++)
+					{
+						msg [i] = s [i];
+					}
+					msg [s.size ()] = '\0';
+					std::cout << msg << std::endl;
+					printf("--------- REQUEST ------------\n",buffer); 
+					send (new_socket, s.c_str (), s.size (), 0); 
 					printf("Message sent\n"); 
+					shutdown (new_socket, 2);
+					//close (new_socket);
+					this->busy [id] = false;
 				};
-				threads_ptr = new std::thread [threads];
+				threads_ptr = new std::thread* [threads];
+				busy = new bool [threads];
 				for (size_t i = 0 ; i < threads ; i ++)
 				{
-					threads_ptr [i] = std::thread (accept_req);
+					threads_ptr [i] = nullptr;
+					busy [i] = false;
 				}
 				while (true)
 				{
+					int new_socket; 
+					if ((new_socket = accept(server_fd, (struct sockaddr *)&address,  
+									   (socklen_t*)&addrlen))<0) 
+					{ 
+						continue;
+						perror("accept"); 
+						throw std::ios_base::failure ("Accept"); 
+					} 
+					std::cout << "Received request on " << new_socket << std::endl;
+					for (size_t i = 0 ; i < threads ; i ++)
+						if (threads_ptr [i] == nullptr)
+						{
+							std::cout << "Create a thread... " << std::endl;
+							threads_ptr [i] = new std::thread (accept_req, new_socket, i);
+							std::cout << "Mark as busy core... " << std::endl;
+							busy [i] = true;
+							std::cout << "Mark as busy core... " << std::endl;
+							threads_ptr [i]->detach ();
+						}
+						else if (busy [i] == false)
+						{
+							delete threads_ptr [i];
+							threads_ptr [i] = new std::thread (accept_req, new_socket, i);
+							busy [i] = true;
+							threads_ptr [i]->detach ();
+						}
 				}
 			}
 
 		private:
-			std::thread* threads_ptr;
-			request* thread_requests;
+			std::thread** threads_ptr;
+			bool* busy;
 	};
 }

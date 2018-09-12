@@ -1,5 +1,6 @@
 #include <Flask/flask.hpp>
 #include <iostream>
+#include <sstream>
 
 int main ()
 {
@@ -26,12 +27,13 @@ int main ()
 	   //}))
 	   .route ("/", []() {
 			std::cout << "Home: returning" << std::endl;		
-	     	return Flask::response (Flask::status_line ("200", "1.1"), {}, "<h1>I love you! I'm working</h1>");
+	     	return Flask::response (Flask::status_line ("200"), {{"Content-Type", "text/html; charset=utf-8"}}, "<h1>I love you! I'm working</h1>");
 	   })
 	   .route ("/users/{user:[a-zA-Z0-9]*}", [](Flask::path_vars v) {
+			std::stringstream ss;
 			for (auto& x : v)
-				std::cout << x.first << " " << x.second << std::endl; 
-			return Flask::response ();
+				ss << x.first << " " << x.second << "<br>"; 
+	     	return Flask::response (Flask::status_line ("200"), {{"Content-Type", "text/html; charset=utf-8"}}, "<h1>" + ss.str () + "</h1>");
 	   })
 	   //TODO: .route ("/contest/{id:int}", [](Flask::path_vars v) {
 	   //TODO:  	for (auto& x : v)
@@ -45,10 +47,7 @@ int main ()
 	   })
 	;
 
-	app.run (8888, std::thread::hardware_concurrency () - 1);
-
-	app.respond ("/");
-	std::cout << std::endl;
-	app.respond ("/users/alexts");
-	app.respond ("/users/alexts/dashboard");
+	const unsigned short port = 8888; const unsigned char cores = std::thread::hardware_concurrency () - 1;
+	std::cout << "Listening on :" << port << " with " << (int)cores << " cores" << std::endl;
+	app.run (port, cores);
 }

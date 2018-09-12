@@ -7,9 +7,19 @@
 
 namespace Flask
 {
+	const std::string end_line = /*\r*/"\n";
 	using path_vars = std::map < std::string, std::string >;
 	
 	const std::map < std::string, std::string > codes_reason {{"100", "Continue"}, {"101", "Switching Protocols"}, {"200", "OK"}, {"201", "Created"}, {"202", "Accepted"}, {"203", "Non-Authoritative Information"}, {"204", "No Content"}, {"205", "Reset Content"}, {"206", "Partial Content"}, {"300", "Multiple Choices"}, {"301", "Moved Permanently"}, {"302", "Found"}, {"303", "See Other"}, {"304", "Not Modified"}, {"305", "Use Proxy"}, {"307", "Temporary Redirect"}, {"400", "Bad Request"}, {"401", "Unauthorized"}, {"402", "Payment Required"}, {"403", "Forbidden"}, {"404", "Not Found"}, {"405", "Method Not Allowed"}, {"406", "Not Acceptable"}, {"407", "Proxy Authentication Required"}, {"408", "Request Time-out"}, {"409", "Conflict"}, {"410", "Gone"}, {"411", "Length Required"}, {"412", "Precondition Failed"}, {"413", "Request Entity Too Large"}, {"414", "Request-URI Too Large"}, {"415", "Unsupported Media Type"}, {"416", "Requested range not satisfiable"}, {"417", "Expectation Failed"}, {"500", "Internal Server Error"}, {"501", "Not Implemented"}, {"502", "Bad Gateway"}, {"503", "Service Unavailable"}, {"504", "Gateway Time-out"}, {"505", "HTTP Version not supported"}};
+	const std::map < std::string, std::pair < std::string, std::string > > type 
+	{ 
+		{"html", 
+			{"Content-Type", "text/html; charset=utf-8"}
+		}, 
+		{"cpp", 
+			{"Content-Type", "text/cpp; charset=utf-8"} 
+		}
+	};
 
 	struct status_line
 	{
@@ -18,12 +28,21 @@ namespace Flask
 		std::string http;
 		std::string code;
 	public:
+		status_line (std::string _code) : http (""), code (_code) 
+		{}
+		
 		status_line (std::string _http, std::string _code) : http (_http), code (_code) 
 		{}
 
+		status_line& set_http (std::string h)
+		{
+			this->http = h;
+			return *this;
+		}
+
 		std::string to_string () const
 		{
-			return "HTTP-" + this->http + " " + this->code + " " + (codes_reason.find (this->code)->second) + "\n\r";
+			return "HTTP/" + this->http + " " + this->code + " " + (codes_reason.find (this->code)->second) + end_line;
 		}
 	};
 
@@ -38,14 +57,21 @@ namespace Flask
 		public:
 			response (status_line s = status_line ("1.1", "204"), std::map < std::string, std::string > m = {}, std::string _body = "") : status (s), header (m), body (_body)
 			{}
+
 			std::string to_string () const
 			{
 				std::string res = status.to_string ();
 				for (auto& x : header)
-					res += x.first + ": " + x.second + "\n\r";
-				res += "\n\r";
+					res += x.first + ": " + x.second + end_line;
+				res += end_line;
 				res += body;
 				return std::move (res);
+			}
+
+			response& set_http (std::string h)
+			{
+				status.set_http (h);
+				return *this;
 			}
 	};
 
@@ -112,79 +138,82 @@ namespace Flask
 
 			request (char* buff)
 			{
-				std::string M;
-				size_t i;
-				for (i = 0 ; i < strlen (buff) ; i ++)
+				if (strlen (buff) != 0)
 				{
-					if (buff [i] == ' ')
-						break;
-					M += buff [i];
-				}
-				m = Flask::to_method (M);
-				for (i ++ ; i < strlen (buff) ; i ++)
-				{
-					if (buff [i] == ' ' or buff [i] == '?')
-						break;
-					uri += buff [i];
-				}
-				if (buff [i] == '?')
-				{
-					std::string var = "", val = "";
-					std::string* x = &var;
-
-					for (i ++ ; i < strlen (buff) ; i ++)
+					std::string M;
+					size_t i;
+					for (i = 0 ; i < strlen (buff) ; i ++)
 					{
-						std::cout << (*x) << "; ;" << buff [i] << std::endl;
-						std::cout << "\t" << var << "; ;" << val << std::endl;
-						if (buff [i] == '=')
-						{
-							x = &val;
-							continue;
-						}
-						if (buff [i] == '&' or buff [i] == ' ')
-						{
-							request_params [var] = val;
-							var = val = "";
-							x = &var;
-						}
 						if (buff [i] == ' ')
 							break;
-						(*x) += buff [i];
+						M += buff [i];
 					}
-				}
-				http = "";
-				for (i += 6 ; i < strlen (buff) ; i ++)
-				{
-					if (buff [i] == '\n')
-						break;
-					http += buff [i];
-				}
-				for (i ++ ; i < strlen (buff) ; i ++)
-				{
-					std::string line = "";
-					for ( ; i < strlen (buff) ; i ++)
+					m = Flask::to_method (M);
+					for (i ++ ; i < strlen (buff) ; i ++)
+					{
+						if (buff [i] == ' ' or buff [i] == '?')
+							break;
+						uri += buff [i];
+					}
+					if (buff [i] == '?')
+					{
+						std::string var = "", val = "";
+						std::string* x = &var;
+
+						for (i ++ ; i < strlen (buff) ; i ++)
+						{
+							std::cout << (*x) << "; ;" << buff [i] << std::endl;
+							std::cout << "\t" << var << "; ;" << val << std::endl;
+							if (buff [i] == '=')
+							{
+								x = &val;
+								continue;
+							}
+							if (buff [i] == '&' or buff [i] == ' ')
+							{
+								request_params [var] = val;
+								var = val = "";
+								x = &var;
+							}
+							if (buff [i] == ' ')
+								break;
+							(*x) += buff [i];
+						}
+					}
+					http = "";
+					for (i += 6 ; i < strlen (buff) ; i ++)
 					{
 						if (buff [i] == '\r')
-						{
-							i ++;
 							break;
-						}
-						if (buff [i] != ' ')
-							line += buff [i];
+						http += buff [i];
 					}
-					if (line == "") break;
-					header [line.substr (0, line.find (':'))] = line.substr (line.find (':') + 1);
+					for (i ++ ; i < strlen (buff) ; i ++)
+					{
+						std::string line = "";
+						for ( ; i < strlen (buff) ; i ++)
+						{
+							if (buff [i] == '\r')
+							{
+								i ++;
+								break;
+							}
+							if (buff [i] != ' ')
+								line += buff [i];
+						}
+						if (line == "") break;
+						header [line.substr (0, line.find (':'))] = line.substr (line.find (':') + 1);
+					}
 				}
 			}
 
 			std::string to_string () const
 			{
-				std::string res = Flask::to_string (m) + " " + uri + " HTTP/" + http + "\n\r";
+				std::string res = Flask::to_string (m) + " " + uri + " HTTP/" + http + end_line;
 				for (auto& x : request_params)
-					res += x.first + ": " + x.second + "\r\n";
+					res += x.first + ": " + x.second + end_line;
 				for (auto& x : header)
-					res += x.first + ": " + x.second + "\r\n";
-				res += "\n\r";
+					res += x.first + ": " + x.second + end_line;
+				res += end_line;
 				res += body;
 				return std::move (res);
 			}
