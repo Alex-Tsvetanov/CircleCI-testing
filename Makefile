@@ -2,7 +2,7 @@ COMPILER_CPP=g++
 COMPILER_C=g
 CPP_STD=-std=c++17
 INCLUDE_DIRS=-I.
-WARNING_FLAGS=-Wall -Wextra -lstdc++fs -fconcepts 
+WARNING_FLAGS=-Wall -Wextra -lstdc++fs -fconcepts -pthread 
 #-Werror
 
 all: build run run_tests

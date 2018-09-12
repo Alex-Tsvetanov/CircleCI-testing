@@ -48,6 +48,147 @@ namespace Flask
 				return std::move (res);
 			}
 	};
+
+	enum class method
+	{
+		GET
+		,HEAD
+		,POST
+		,PUT
+		,DELETE
+		,CONNECT
+		,OPTIONS
+		,TRACE
+		,PATCH
+	};
+
+	std::string to_string (const method& m)
+	{
+		switch (m)
+		{
+			case method::GET: return "GET";
+			case method::HEAD: return "HEAD";
+			case method::POST: return "POST";
+			case method::PUT: return "PUT";
+			case method::DELETE: return "DELETE";
+			case method::CONNECT: return "CONNECT";
+			case method::OPTIONS: return "OPTIONS";
+			case method::TRACE: return "TRACE";
+			case method::PATCH: return "PATCH";
+			default: throw std::invalid_argument ("Not valid METHOD Type");
+		}
+	}
+
+	method to_method (const std::string& m)
+	{
+		if (m == "GET") return method::GET;
+		if (m == "HEAD") return method::HEAD;
+		if (m == "POST") return method::POST;
+		if (m == "PUT") return method::PUT;
+		if (m == "DELETE") return method::DELETE;
+		if (m == "CONNECT") return method::CONNECT;
+		if (m == "OPTIONS") return method::OPTIONS;
+		if (m == "TRACE") return method::TRACE;
+		if (m == "PATCH") return method::PATCH;
+		throw std::invalid_argument (m + " is not a valid METHOD Type");
+	}
+	
+	using req_vars = std::map < std::string, std::string >;
+	
+	struct request
+	{
+		private:
+		public:
+
+			method m;
+			std::string uri;
+			req_vars request_params;
+			std::string http;
+			std::map < std::string, std::string > header;
+			std::string body;
+		public:
+			request (method _m, std::string h, std::map < std::string, std::string > m, std::string _body) : m (_m), http (h), header (m), body (_body)
+			{}
+
+			request (char* buff)
+			{
+				std::string M;
+				size_t i;
+				for (i = 0 ; i < strlen (buff) ; i ++)
+				{
+					if (buff [i] == ' ')
+						break;
+					M += buff [i];
+				}
+				m = Flask::to_method (M);
+				for (i ++ ; i < strlen (buff) ; i ++)
+				{
+					if (buff [i] == ' ' or buff [i] == '?')
+						break;
+					uri += buff [i];
+				}
+				if (buff [i] == '?')
+				{
+					std::string var = "", val = "";
+					std::string* x = &var;
+
+					for (i ++ ; i < strlen (buff) ; i ++)
+					{
+						std::cout << (*x) << "; ;" << buff [i] << std::endl;
+						std::cout << "\t" << var << "; ;" << val << std::endl;
+						if (buff [i] == '=')
+						{
+							x = &val;
+							continue;
+						}
+						if (buff [i] == '&' or buff [i] == ' ')
+						{
+							request_params [var] = val;
+							var = val = "";
+							x = &var;
+						}
+						if (buff [i] == ' ')
+							break;
+						(*x) += buff [i];
+					}
+				}
+				http = "";
+				for (i += 6 ; i < strlen (buff) ; i ++)
+				{
+					if (buff [i] == '\n')
+						break;
+					http += buff [i];
+				}
+				for (i ++ ; i < strlen (buff) ; i ++)
+				{
+					std::string line = "";
+					for ( ; i < strlen (buff) ; i ++)
+					{
+						if (buff [i] == '\r')
+						{
+							i ++;
+							break;
+						}
+						if (buff [i] != ' ')
+							line += buff [i];
+					}
+					if (line == "") break;
+					header [line.substr (0, line.find (':'))] = line.substr (line.find (':') + 1);
+				}
+			}
+
+			std::string to_string () const
+			{
+				std::string res = Flask::to_string (m) + " " + uri + " HTTP/" + http + "\n\r";
+				for (auto& x : request_params)
+					res += x.first + ": " + x.second + "\r\n";
+				for (auto& x : header)
+					res += x.first + ": " + x.second + "\r\n";
+				res += "\n\r";
+				res += body;
+				return std::move (res);
+			}
+	};
 /*static map < unsigned short, response > responses = 
 {"100", "Continue"},
 {"101", "Switching Protocols"},
